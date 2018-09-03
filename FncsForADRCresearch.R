@@ -196,7 +196,8 @@ rf.cv.kfold <- function(data, response, n_folds, B, cluster=NULL){
   
   require(randomForest)
   
-   if(is.null(cluster)==TRUE){
+  
+   if( is.null(cluster)==TRUE ){
       # if you want to sample on row indices, set n_train to number of rows,
       # otherwise set n_train to number of unique clusters
       n_train <- nrow(data)
