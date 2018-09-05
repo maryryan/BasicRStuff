@@ -171,12 +171,12 @@ survivalCI <- function(model){
 
 
 
-
 #############
 ################# K-FOLD CROSS VALIDATION FUNCTION
 ################# FOR RANDOM FOREST MSE
 ################# MARY RYAN
 ################# 8.29.2018
+################# UPDATED: 9.4.18
 #############
 
 ## example data ##
@@ -187,111 +187,118 @@ survivalCI <- function(model){
 # n_folds <- 4
 
 rf.cv.kfold <- function(data, response, n_folds, B, cluster=NULL){
-  ### data: dataframe containing all candidate predictors, response, and cluster IDs
-  ### response: string of column name of data containing response
-  ### n_folds: set how many folds in k-fold you want 
-  ### B: how many bootstrap iterations you want
-  ### cluster: optional argument if you want to sample on cluster IDs instead of row indices
-    # strong of the column name of data containing cluster IDs
-  
-  require(randomForest)
-  
-  
+   ### data: dataframe containing all candidate predictors (but no additional predictors), response, and cluster IDs
+   ### response: string of column name of data containing response
+   ### n_folds: set how many folds in k-fold you want 
+   ### B: how many bootstrap iterations you want
+   ### cluster: optional argument if you want to sample on cluster IDs instead of row indices
+   # strong of the column name of data containing cluster IDs
+   
+   require(randomForest)
+   
+   
    if( is.null(cluster)==TRUE ){
       # if you want to sample on row indices, set n_train to number of rows,
       # otherwise set n_train to number of unique clusters
-      n_train <- nrow(data)
+      n_train <- nrow( data )
       # initialize cv storage matrix #
-      cv_tmp <- matrix(NA, nrow = n_folds, ncol = B)
-
+      cv_tmp <- matrix( NA, nrow = n_folds, ncol = B )
+      
       # start the bootstrap #
-      for(b in 1:B){
-        # randomly order k-fold group numbers #
+      for( b in 1:B ){
+         # randomly order k-fold group numbers #
          folds_i <- sample( rep(1:n_folds, length.out=n_train) ) 
          
          # start the k-fold CV #
-         for(k in 1:n_folds){
-           # say the kth group will be the test set #
-           test_i <- which(folds_i == k)
-           # create a subset of the training dataset with all the observations not in the test IDs #
-           train_data <-data[-test_i,]
-           train_response <- data[-test_i,paste(response)]
-           
-           # create subset of the testing dataset with only the observations in the test IDs #
-           test_data <- data[test_i,]
-           test_response <- data[test_i,paste(response)]
+         for( k in 1:n_folds ){
+            # say the kth group will be the test set #
+            test_i <- which( folds_i == k )
+            # create a subset of the training dataset with all the observations not in the test IDs #
+            train_data <-data[-test_i,]
+            train_response <- data[-test_i,paste(response)]
             
-           # run random forests on training set #
-           fittedModel <- randomForest( train_response~.,train_data )
-           
-           # use model above to predict values from test set #
-           pred <- predict( fittedModel, test_data )
-           # find the MSE for this k-fold #
-           cv_tmp[k,b] <- sapply(as.list(data.frame(pred)), function(pred) mean((test_response - pred)^2))
+            # create subset of the testing dataset with only the observations in the test IDs #
+            test_data <- data[test_i,]
+            test_response <- data[test_i,paste(response)]
+            
+            # run random forests on training set #
+            fittedModel <- randomForest( train_response~.,train_data )
+            
+            # use model above to predict values from test set #
+            pred <- predict( fittedModel, test_data )
+            # find the MSE for this k-fold #
+            cv_tmp[k,b] <- sapply( as.list( data.frame(pred) ), function(pred) mean( (test_response - pred)^2 ) )
             
             
          }# repeat until each k-fold group has an MSE estimate #
          
+         if( (b/B) %in% seq(0.2,1,by=0.2) ){ print( paste( (b/B)*100,"%" ) ) }#progress counter
+         
       }# repeat process B times #
       # average the MSEs of each k-fold run together #
-      cv.B <- colMeans(cv_tmp)
+      cv.B <- colMeans( cv_tmp )
       # average the means of each bootstrap run together #
-      cv <- mean(cv.B)
+      cv <- mean( cv.B )
       
    } else{
-     # if you want to sample on clusters, set n_train to unique number of clusters,
-     # otherwise set n_train to number of rows in dataset
+      # if you want to sample on clusters, set n_train to unique number of clusters,
+      # otherwise set n_train to number of rows in dataset
       n_train <- length( unique( data[,paste(cluster)] ) )
       # initialize cv storage matrix #
-      cv_tmp <- matrix(NA, nrow = n_folds, ncol = B)
+      cv_tmp <- matrix( NA, nrow = n_folds, ncol = B )
       
       # start the bootstrap #
-      for(b in 1:B){
-        # randomly order k-fold group numbers #
+      for( b in 1:B ){
+         # randomly order k-fold group numbers #
          folds_i <- sample( rep(1:n_folds, length.out=n_train) )
          # assign k-fold group numbers to each cluster ID (or row index) #
          cluster_folds <- cbind( unique( data[,paste(cluster)] ), folds_i )
          
          # start the k-fold CV #
-         for(k in 1:n_folds){
-
-           # say the kth group will be the test set #
-           test_cluster <- data[which(cluster_folds[,2] == k),1]
-           # create a subset of the training dataset with all the observations not in the test IDs #
-           train_data <-data[which(!(data[,paste(cluster)] %in% test_cluster)),]
-           train_response <- data[which(!(data[,paste(cluster)] %in% test_cluster)),paste(response)]
-           
-           # create subset of the testing dataset with only the observations in the test IDs #
-           test_data <- data[which(data[,paste(cluster)] %in% test_cluster),]
-           test_response <- data[which(data[,paste(cluster)] %in% test_cluster),paste(response)]
-           
-           # run random forests on training set #
-           fittedModel <- randomForest( train_response~., train_data )
-           
-           # use model above to predict values from test set #
-           pred <- predict( fittedModel, test_data )
-           # find the MSE for this k-fold #
-           cv_tmp[k,b] <- sapply(as.list(data.frame(pred)), function(pred) mean((test_response - pred)^2))
-           
-
+         for( k in 1:n_folds ){
+            
+            # say the kth group will be the test set #
+            test_cluster <- data[which(cluster_folds[,2] == k),1]
+            # create a subset of the training dataset with all the observations not in the test IDs #
+            train_data <-data[which(!(data[,paste(cluster)] %in% test_cluster)),]
+            train_response <- data[which(!(data[,paste(cluster)] %in% test_cluster)),paste(response)]
+            
+            # create subset of the testing dataset with only the observations in the test IDs #
+            test_data <- data[which(data[,paste(cluster)] %in% test_cluster),]
+            test_response <- data[which(data[,paste(cluster)] %in% test_cluster),paste(response)]
+            
+            # run random forests on training set #
+            fittedModel <- randomForest( train_response~., train_data )
+            
+            # use model above to predict values from test set #
+            pred <- predict( fittedModel, test_data )
+            # find the MSE for this k-fold #
+            cv_tmp[k,b] <- sapply( as.list( data.frame(pred) ), function(pred) mean( (test_response - pred)^2 ) )
+            
+            
          }# repeat until each k-fold group has an MSE estimate #
-
+         
+         if( (b/B) %in% seq(0.2,1,by=0.2) ){ print( paste( (b/B)*100,"%" ) ) }#progress counter
+         
       }# repeat process B times #
       # average the MSEs of each k-fold run together #
-      cv.B <- colMeans(cv_tmp)
+      cv.B <- colMeans( cv_tmp )
       # average the means of each bootstrap run together #
-      cv <- mean(cv.B)
+      cv <- mean( cv.B )
       
    }
-
-  return(cv)
+   output <- list( cv, cv.B )
+   return( output )
 }
+
+
 
 #############
 ################# K-FOLD CROSS VALIDATION FUNCTION
 ################# FOR LASSO MSE
 ################# MARY RYAN
 ################# 8.29.2018
+################# UPDATED 9.4.18
 #############
 
 ## example data ##
@@ -305,8 +312,10 @@ lasso.cv.kfold <- function(data, response, predictors, n_folds, B, family="gauss
                            cluster=NULL){
    ### data: dataframe containing all candidate predictors, response, and cluster IDs
    ### response: string of column name of data containing response
+   ### predictors: vector of strings with column names of desired predictors
    ### n_folds: set how many folds in k-fold you want 
    ### B: how many bootstrap iterations you want
+   #### family: response type; defaulted to gaussian
    ### cluster: optional argument if you want to sample on cluster IDs instead of row indices
    # strong of the column name of data containing cluster IDs
    
@@ -318,17 +327,17 @@ lasso.cv.kfold <- function(data, response, predictors, n_folds, B, family="gauss
       # otherwise set n_train to number of unique clusters
       n_train <- nrow(data)
       # initialize cv storage matrix #
-      cv_tmp <- matrix(NA, nrow = n_folds, ncol = B)
+      cv_tmp <- matrix( NA, nrow = n_folds, ncol = B )
       
       # start the bootstrap #
-      for(b in 1:B){
+      for( b in 1:B ){
          # randomly order k-fold group numbers #
          folds_i <- sample( rep(1:n_folds, length.out=n_train) ) 
          
          # start the k-fold CV #
-         for(k in 1:n_folds){
+         for( k in 1:n_folds ){
             # say the kth group will be the test set #
-            test_i <- which(folds_i == k)
+            test_i <- which( folds_i == k )
             # create a subset of the training dataset with all the observations not in the test IDs #
             train_data <- data[-test_i,]
             train_matrix <- model.matrix(as.formula( paste(response, "~", paste(predictors,collapse="+")) ),
@@ -337,8 +346,8 @@ lasso.cv.kfold <- function(data, response, predictors, n_folds, B, family="gauss
             
             # create subset of the testing dataset with only the observations in the test IDs #
             test_data <- data[test_i,]
-            test_matrix <- model.matrix(as.formula( paste(response, "~", paste(predictors,collapse="+")) ),
-                                         test_data)
+            test_matrix <- model.matrix( as.formula( paste(response, "~", paste(predictors,collapse="+")) ),
+                                         test_data )
             test_response <- data[test_i,paste(response)]
             
             # run random forests on training set #
@@ -349,46 +358,48 @@ lasso.cv.kfold <- function(data, response, predictors, n_folds, B, family="gauss
             pred <- predict( fittedModel, s=fittedModel$lambda.1se, newx=test_matrix )
             
             # find the MSE for this k-fold #
-            cv_tmp[k,b] <- sapply(as.list(data.frame(pred)), function(pred) mean((test_response - pred)^2))
+            cv_tmp[k,b] <- sapply( as.list( data.frame(pred) ), function(pred) mean( (test_response - pred)^2 ) )
             
             
          }# repeat until each k-fold group has an MSE estimate #
          
+         if( (b/B) %in% seq(0.2,1,by=0.2) ){ print( paste( (b/B)*100,"%" ) ) }#progress counter
+         
       }# repeat process B times #
       # average the MSEs of each k-fold run together #
-      cv.B <- colMeans(cv_tmp)
+      cv.B <- colMeans( cv_tmp )
       # average the means of each bootstrap run together #
-      cv <- mean(cv.B)
+      cv <- mean( cv.B )
       
    } else{
       # if you want to sample on clusters, set n_train to unique number of clusters,
       # otherwise set n_train to number of rows in dataset
       n_train <- length( unique( data[,paste(cluster)] ) )
       # initialize cv storage matrix #
-      cv_tmp <- matrix(NA, nrow = n_folds, ncol = B)
+      cv_tmp <- matrix( NA, nrow = n_folds, ncol = B )
       
       # start the bootstrap #
-      for(b in 1:B){
+      for( b in 1:B ){
          # randomly order k-fold group numbers #
          folds_i <- sample( rep(1:n_folds, length.out=n_train) )
          # assign k-fold group numbers to each cluster ID (or row index) #
          cluster_folds <- cbind( unique( data[,paste(cluster)] ), folds_i )
          
          # start the k-fold CV #
-         for(k in 1:n_folds){
+         for( k in 1:n_folds ){
             
             # say the kth group will be the test set #
             test_cluster <- data[which(cluster_folds[,2] == k),1]
             # create a subset of the training dataset with all the observations not in the test IDs #
             train_data <-data[which(!(data[,paste(cluster)] %in% test_cluster)),]
-            train_matrix <- model.matrix(as.formula( paste(response, "~", paste(predictors,collapse="+")) ),
-                                         train_data)
+            train_matrix <- model.matrix( as.formula( paste(response, "~", paste(predictors,collapse="+")) ),
+                                          train_data )
             train_response <- data[which(!(data[,paste(cluster)] %in% test_cluster)),paste(response)]
             
             # create subset of the testing dataset with only the observations in the test IDs #
             test_data <- data[which(data[,paste(cluster)] %in% test_cluster),]
-            test_matrix <- model.matrix(as.formula( paste(response, "~", paste(predictors,collapse="+")) ),
-                                         test_data)
+            test_matrix <- model.matrix( as.formula( paste(response, "~", paste(predictors,collapse="+")) ),
+                                         test_data )
             test_response <- data[which(data[,paste(cluster)] %in% test_cluster),paste(response)]
             
             # run random forests on training set #
@@ -398,18 +409,21 @@ lasso.cv.kfold <- function(data, response, predictors, n_folds, B, family="gauss
             # use model above to predict values from test set #
             pred <- predict( fittedModel, s=fittedModel$lambda.1se, newx=test_matrix )
             # find the MSE for this k-fold #
-            cv_tmp[k,b] <- sapply(as.list(data.frame(pred)), function(pred) mean((test_response - pred)^2))
+            cv_tmp[k,b] <- sapply( as.list( data.frame(pred) ), function(pred) mean( (test_response - pred)^2 ) )
             
             
          }# repeat until each k-fold group has an MSE estimate #
          
+         if( (b/B) %in% seq(0.2,1,by=0.2) ){ print( paste( (b/B)*100,"%" ) ) }#progress counter
+         
       }# repeat process B times #
       # average the MSEs of each k-fold run together #
-      cv.B <- colMeans(cv_tmp)
+      cv.B <- colMeans( cv_tmp )
       # average the means of each bootstrap run together #
-      cv <- mean(cv.B)
+      cv <- mean( cv.B )
       
    }
    
-   return(cv)
+   output <- list( cv, cv.B )
+   return( output )
 }
