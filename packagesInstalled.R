@@ -17,6 +17,7 @@ install.packages('openxlsx')
 install.packages('pander')
 install.packages('rematch')
 install.packages('rematch2')
+install.packages('beepr')
 
 #### PACKAGES FOR MODELING ####
 install.packages('nlme')
