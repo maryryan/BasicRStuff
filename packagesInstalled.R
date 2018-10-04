@@ -18,6 +18,7 @@ install.packages('pander')
 install.packages('rematch')
 install.packages('rematch2')
 install.packages('beepr')
+install.packages('skimr')
 
 #### PACKAGES FOR MODELING ####
 install.packages('nlme')
