@@ -40,6 +40,7 @@ install.packages('pROC')
 install.packages('psych')
 install.packages('ROCR')
 install.packages('glmnet')
+install.packages('grf')
 
 #### GROUP SEQUENTIAL TESTING ####
 install.packages('RCTdesign')
